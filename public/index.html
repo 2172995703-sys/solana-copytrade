@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#111827">
+  <title>Solana 极速跟单</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+      font-family: Arial, sans-serif;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 18px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 21px;
+    }
+
+    header p {
+      margin: 6px 0 0;
+      color: #9ca3af;
+      font-size: 13px;
+    }
+
+    main {
+      max-width: 700px;
+      margin: auto;
+      padding: 14px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    }
+
+    .title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .online {
+      color: #16a34a;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      border: 0;
+      border-radius: 10px;
+      background: #111827;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+    }
+
+    button:active {
+      opacity: .8;
+    }
+
+    .wallet {
+      padding: 10px;
+      background: #f9fafb;
+      border-radius: 9px;
+      margin-top: 8px;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .event {
+      padding: 11px 0;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .event:last-child {
+      border-bottom: 0;
+    }
+
+    .muted {
+      color: #6b7280;
+    }
+
+    .mode {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 20px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 12px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>⚡ Solana 极速跟单</h1>
+  <p>链上地址监控 · PAPER 测试模式</p>
+</header>
+
+<main>
+
+  <div class="card">
+    <div class="status">
+      <div>
+        <div class="title">系统状态</div>
+        <div id="status" class="muted">正在连接...</div>
+      </div>
+
+      <div id="mode" class="mode">PAPER</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title">➕ 添加监控钱包</div>
+
+    <input
+      id="wallet"
+      placeholder="输入 Solana 钱包地址"
+      autocomplete="off"
+    >
+
+    <button onclick="addWallet()">
+      开始监控
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="title">👀 正在监控</div>
+    <div id="wallets">
+      <div class="muted">暂无钱包</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="title">📡 实时链上事件</div>
+    <div id="events">
+      <div class="muted">等待链上交易...</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+async function loadHealth() {
+  try {
+    const res = await fetch('/health');
+    const data = await res.json();
+
+    document.getElementById('status').innerHTML =
+      '<span class="online">● 在线</span>';
+
+    document.getElementById('mode').textContent =
+      data.mode || 'PAPER';
+
+  } catch (e) {
+    document.getElementById('status').textContent =
+      '连接失败';
+  }
+}
+
+async function loadWallets() {
+  try {
+    const res = await fetch('/watch');
+    const wallets = await res.json();
+
+    const box = document.getElementById('wallets');
+
+    if (!wallets.length) {
+      box.innerHTML =
+        '<div class="muted">暂无钱包</div>';
+      return;
+    }
+
+    box.innerHTML = wallets.map(wallet => `
+      <div class="wallet">
+        ${wallet}
+      </div>
+    `).join('');
+
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+async function addWallet() {
+  const input = document.getElementById('wallet');
+  const wallet = input.value.trim();
+
+  if (!wallet) {
+    alert('请输入 Solana 钱包地址');
+    return;
+  }
+
+  try {
+    const res = await fetch('/watch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ wallet })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || '添加失败');
+      return;
+    }
+
+    input.value = '';
+
+    await loadWallets();
+
+    alert('监控已启动');
+
+  } catch (e) {
+    alert('连接服务器失败');
+  }
+}
+
+async function loadEvents() {
+  try {
+    const res = await fetch('/events');
+    const events = await res.json();
+
+    const box = document.getElementById('events');
+
+    if (!events.length) {
+      box.innerHTML =
+        '<div class="muted">等待链上交易...</div>';
+      return;
+    }
+
+    box.innerHTML = events.slice(0, 30).map(event => `
+      <div class="event">
+        <b>${event.type || 'EVENT'}</b><br>
+        <span class="muted">
+          ${new Date(event.time).toLocaleString()}
+        </span><br>
+        ${event.wallet || ''}<br>
+        ${event.signature || ''}
+      </div>
+    `).join('');
+
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+async function refresh() {
+  await loadHealth();
+  await loadWallets();
+  await loadEvents();
+}
+
+refresh();
+
+setInterval(refresh, 3000);
+</script>
+
+</body>
+</html>
